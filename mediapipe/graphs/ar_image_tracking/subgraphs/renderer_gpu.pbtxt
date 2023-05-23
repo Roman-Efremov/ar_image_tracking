@@ -1,0 +1,73 @@
+type: "RendererSubgraphGpu"
+
+input_stream: "VIDEO_1:gl_input_video"
+input_stream: "ANCHORS:tracked_anchor_data"
+input_stream: "USER_ROTATIONS:user_rotation_data"
+input_stream: "USER_SCALINGS:user_scaling_data"
+input_stream: "RENDER_DATA:render_data"
+input_stream: "IMU_ROTATION:imu_rotation_matrix"
+input_stream: "depth_image"
+output_stream: "output_video"
+input_side_packet: "vertical_fov_radians"
+input_side_packet: "aspect_ratio"
+input_side_packet: "texture_name"
+input_side_packet: "asset_name"
+
+# Concatenates all transformations to generate model matrices for the OpenGL
+# animation overlay calculator.
+node {
+  calculator: "MatricesManagerCalculator"
+  input_stream: "ANCHORS:tracked_anchor_data"
+  input_stream: "USER_ROTATIONS:user_rotation_data"
+  input_stream: "USER_SCALINGS:user_scaling_data"
+  input_stream: "RENDER_DATA:render_data"
+  input_stream: "IMU_ROTATION:imu_rotation_matrix"
+  #input_stream: "GIF_ASPECT_RATIO:gif_aspect_ratio"
+  output_stream: "MATRICES:0:gif_matrices"
+  output_stream: "MATRICES:1:asset_3d_matrices"
+  input_side_packet: "FOV:vertical_fov_radians"
+  input_side_packet: "ASPECT_RATIO:aspect_ratio"
+}
+
+node {
+  calculator: "PacketClonerCalculator"
+  input_stream: "asset_3d_matrices"
+  input_stream: "depth_image"
+  input_stream: "tracked_anchor_data"
+  input_stream: "TICK:gl_input_video"
+  output_stream: "cloned_asset_3d_matrices"
+  output_stream: "cloned_depth_image"
+  output_stream: "cloned_tracked_anchor_data"
+}
+
+# black screen -> calculator waits for all inputs? and matrix comes only from detection
+node: {
+  calculator: "GlAnimationOverlayCalculator"
+  input_stream: "VIDEO:gl_input_video"
+  input_stream: "MODEL_MATRICES:cloned_asset_3d_matrices"
+  input_stream: "DEPTH_TEXTURE:cloned_depth_image"
+  input_stream: "ANCHORS:cloned_tracked_anchor_data"
+  output_stream: "output_rendered_video"
+  input_side_packet: "TEXTURE:texture_name"
+  input_side_packet: "ANIMATION_ASSET:asset_name"
+    node_options: {
+    [type.googleapis.com/mediapipe.GlAnimationOverlayCalculatorOptions] {
+      aspect_ratio: 0.75
+      vertical_fov_degrees: 68
+    }
+  }
+}
+
+node {
+  calculator: "AnchorsToRenderDataCalculator"
+  input_stream: "ANCHORS:cloned_tracked_anchor_data"
+  output_stream: "RENDER_DATA:anchors_render_data"
+}
+
+# Draws annotations and overlays them on top of the input images.
+node {
+  calculator: "AnnotationOverlayCalculator"
+  input_stream: "IMAGE_GPU:output_rendered_video"
+  input_stream: "VECTOR:anchors_render_data"
+  output_stream: "IMAGE_GPU:output_video"
+}

@@ -1,0 +1,56 @@
+type: "ObjectTrackingSubgraphGpu"
+
+input_stream: "VIDEO:input_video"
+input_stream: "BOXES:start_pos"
+output_stream: "ANCHORS:tracked_anchor_data"
+output_stream: "USER_ROTATIONS:user_rotation_data"
+output_stream: "USER_SCALINGS:user_scaling_data"
+output_stream: "RENDER_DATA:render_data"
+
+# Subgraph that tracks boxes (see box_tracking_gpu.pbtxt).
+node {
+  calculator: "BoxTrackingSubgraphGpu"
+  input_stream: "VIDEO:input_video"
+  input_stream: "BOXES:start_pos"
+  input_stream: "CANCEL_ID:cancel_object_id"
+  output_stream: "BOXES:boxes"
+}
+
+# Converts Detections to Anchors with z axis scaling. Calculates 
+# user scalings and user rotations.
+# Removes duplicate detections.
+node {
+  calculator: "BoxesManagerCalculator"
+  #input_stream: "BOXES:start_pos"
+  input_stream: "TRACKING_BOXES:boxes"
+  #input_stream_info: {
+  #  tag_index: 'TRACKING_BOXES'
+  #  back_edge: true
+  #}
+  output_stream: "CANCEL_ID:cancel_object_id"
+  output_stream: "ANCHORS:tracked_anchor_data"
+  output_stream: "USER_ROTATIONS:user_rotation_data"
+  output_stream: "USER_SCALINGS:user_scaling_data"
+  output_stream: "RENDER_DATA:render_data"
+  
+  # Is it really needed?
+  # input_stream_handler {
+  #  input_stream_handler: "SyncSetInputStreamHandler"
+  #  options {
+  #    [mediapipe.SyncSetInputStreamHandlerOptions.ext] {
+  #      sync_set {
+  #        tag_index: "TRACKING_BOXES"
+  #      }
+  #      sync_set {
+  #        tag_index: "ANCHORS"
+  #      }
+  #      sync_set {
+  #        tag_index: "USER_ROTATIONS"
+  #      }
+  #      sync_set {
+  #        tag_index: "USER_SCALINGS"
+  #      }
+  #    }
+  #  }
+  # }
+}
